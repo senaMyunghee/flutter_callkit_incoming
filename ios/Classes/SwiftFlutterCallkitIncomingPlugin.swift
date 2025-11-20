@@ -622,30 +622,35 @@ public class SwiftFlutterCallkitIncomingPlugin: NSObject, FlutterPlugin, CXProvi
     
     public func provider(_ provider: CXProvider, perform action: CXEndCallAction) {
         guard let call = self.callManager.callWithUUID(uuid: action.callUUID) else {
-            if(self.answerCall == nil && self.outgoingCall == nil){
-                sendEvent(SwiftFlutterCallkitIncomingPlugin.ACTION_CALL_TIMEOUT, self.data?.toJSON())
-            } else {
-                sendEvent(SwiftFlutterCallkitIncomingPlugin.ACTION_CALL_ENDED, self.data?.toJSON())
-            }
             action.fail()
             return
         }
+        
         call.endCall()
+        
+        // 종료하는 통화가 답변한 통화인지 또는 발신 통화인지 확인
+        let isAnsweredCall = (self.answerCall?.uuid == call.uuid)
+        let isOutgoingCall = (self.outgoingCall?.uuid == call.uuid)
+        
         self.callManager.removeCall(call)
-        if (self.answerCall == nil && self.outgoingCall == nil) {
-            sendEvent(SwiftFlutterCallkitIncomingPlugin.ACTION_CALL_DECLINE, self.data?.toJSON())
+        
+        // 답변하지 않은 incoming call을 거절하는 경우
+        if !isAnsweredCall && !isOutgoingCall {
+            sendEvent(SwiftFlutterCallkitIncomingPlugin.ACTION_CALL_DECLINE, call.data.toJSON())
             if let appDelegate = UIApplication.shared.delegate as? CallkitIncomingAppDelegate {
                 appDelegate.onDecline(call, action)
             } else {
                 action.fulfill()
             }
-        }else {
-            if self.answerCall?.uuid.uuidString == call.uuid.uuidString {
+        } else {
+            // 이미 연결된 통화를 종료하는 경우
+            if isAnsweredCall {
                 self.answerCall = nil
             }
-            if self.outgoingCall?.uuid.uuidString == call.uuid.uuidString {
+            if isOutgoingCall {
                 self.outgoingCall = nil
             }
+            
             sendEvent(SwiftFlutterCallkitIncomingPlugin.ACTION_CALL_ENDED, call.data.toJSON())
             if let appDelegate = UIApplication.shared.delegate as? CallkitIncomingAppDelegate {
                 appDelegate.onEnd(call, action)
