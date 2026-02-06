@@ -8,6 +8,7 @@ import android.os.Build
 import android.os.Bundle
 import android.util.Log
 import android.telecom.TelecomManager
+import android.net.Uri
 
 class CallkitIncomingBroadcastReceiver : BroadcastReceiver() {
 
@@ -125,6 +126,17 @@ class CallkitIncomingBroadcastReceiver : BroadcastReceiver() {
                     )
                     sendEventFlutter(CallkitConstants.ACTION_CALL_START, data)
                     addCall(context, Data.fromBundle(data), true)
+
+                    // Outgoing connection 등록
+                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                        val telecomManager = context.getSystemService(Context.TELECOM_SERVICE) as TelecomManager
+                        val handle = InAppCallManager(context).getPhoneAccountHandle()
+                        val extras = Bundle().apply {
+                            putBundle(TelecomManager.EXTRA_OUTGOING_CALL_EXTRAS, data)
+                            putParcelable(TelecomManager.EXTRA_PHONE_ACCOUNT_HANDLE, handle)
+                        }
+                        telecomManager.placeCall(Uri.fromParts("tel", "wave_call", null), extras)
+                    }
                 } catch (error: Exception) {
                     Log.e(TAG, null, error)
                 }

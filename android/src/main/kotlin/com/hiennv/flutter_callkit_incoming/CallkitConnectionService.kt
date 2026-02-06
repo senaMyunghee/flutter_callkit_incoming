@@ -44,16 +44,40 @@ class CallkitConnectionService : ConnectionService() {
         disconnectCurrentConnection()
 
         val data = request?.extras?.getBundle(TelecomManager.EXTRA_INCOMING_CALL_EXTRAS)
-        return CallkitConnection(applicationContext, data).apply {
+        return CallkitConnection(applicationContext, data, isIncoming = true).apply {
             setRinging()  // STATE_RINGING 설정
             activeConnection = this
         }
+    }
+    override fun onCreateOutgoingConnection(
+        connectionManagerPhoneAccount: PhoneAccountHandle?,
+        request: ConnectionRequest?
+    ): Connection {
+        disconnectCurrentConnection()
+        val data = request?.extras?.getBundle(TelecomManager.EXTRA_OUTGOING_CALL_EXTRAS)
+        return CallkitConnection(applicationContext, data, isIncoming = false).apply {
+            setDialing()      // outgoing은 DIALING 상태로 시작
+            activeConnection = this
+        }
+    }
+    override fun onCreateIncomingConnectionFailed(
+        connectionManagerPhoneAccount: PhoneAccountHandle?,
+        request: ConnectionRequest?
+    ) {
+        Log.e("CallkitConnectionService", "IncomingConnection FAILED")
+    }
+
+    override fun onCreateOutgoingConnectionFailed(
+        connectionManagerPhoneAccount: PhoneAccountHandle?,
+        request: ConnectionRequest?
+    ) {
+        Log.e("CallkitConnectionService", "OutgoingConnection FAILED")
     }
 
 }
 
 @RequiresApi(Build.VERSION_CODES.M)
-class CallkitConnection(private val context: Context, private val callData: Bundle?) : Connection() {
+class CallkitConnection(private val context: Context, private val callData: Bundle?, private val isIncoming: Boolean) : Connection() {
     
     private var notificationShown = false
 
@@ -63,13 +87,13 @@ class CallkitConnection(private val context: Context, private val callData: Bund
         }
         audioModeIsVoip = true
     }
-
+    // Incoming 전용
     override fun onShowIncomingCallUi() {
         showNotificationIfNeeded()
     }
 
     override fun onCallAudioStateChanged(state: CallAudioState) {
-        if (state.route == CallAudioState.ROUTE_BLUETOOTH) {
+        if (isIncoming && state.route == CallAudioState.ROUTE_BLUETOOTH) {
             showNotificationIfNeeded()
         }
     }

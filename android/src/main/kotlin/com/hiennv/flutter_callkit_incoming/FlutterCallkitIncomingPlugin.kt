@@ -300,6 +300,10 @@ class FlutterCallkitIncomingPlugin : FlutterPlugin, MethodCallHandler, ActivityA
                             )
                         )
                     }
+                    // Connection을 Active로 전환
+                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+                        CallkitConnectionService.setConnectionActive()
+                    }
                     result.success(true)
                 }
 
