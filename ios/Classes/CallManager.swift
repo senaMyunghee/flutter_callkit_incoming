@@ -79,7 +79,31 @@ class CallManager: NSObject {
             }
         }
     }
-    
+    func replaceCall(oldCall: Call, newData: Data) {
+        let endAction = CXEndCallAction(call: oldCall.uuid)
+        
+        let newUUID = UUID(uuidString: newData.uuid)!
+        let handle = CXHandle(type: self.getHandleType(newData.handleType), value: newData.getEncryptHandle())
+        let startAction = CXStartCallAction(call: newUUID, handle: handle)
+        startAction.isVideo = newData.type > 0
+        
+        let transaction = CXTransaction()
+        transaction.addAction(endAction)
+        transaction.addAction(startAction)
+        
+        self.requestCall(transaction, action: "replaceCall", completion: { _ in
+            let callUpdate = CXCallUpdate()
+            callUpdate.remoteHandle = handle
+            callUpdate.supportsDTMF = newData.supportsDTMF
+            callUpdate.supportsHolding = newData.supportsHolding
+            callUpdate.supportsGrouping = newData.supportsGrouping
+            callUpdate.supportsUngrouping = newData.supportsUngrouping
+            callUpdate.hasVideo = newData.type > 0
+            callUpdate.localizedCallerName = newData.nameCaller
+            self.sharedProvider?.reportCall(with: newUUID, updated: callUpdate)
+        })
+    }
+
     func endCallAlls() {
         let calls = callController.callObserver.calls
         for call in calls {
