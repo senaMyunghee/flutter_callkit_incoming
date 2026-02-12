@@ -67,14 +67,15 @@ class CallManager: NSObject {
         let callItem = self.callWithUUID(uuid: call.uuid)
         callItem?.connectedCall(completion: nil)
         
-        let answerAction = CXAnswerCallAction(call: call.uuid)        
-        let transaction = CXTransaction(action: answerAction)
-
-        callController.request(transaction) { error in
-            if let error = error {
-                print("Error answering call: \(error.localizedDescription)")
-            } else {
-                // Call successfully answered
+        // outgoing call이면 CXAnswerCallAction을 쓰지 않음
+        // reportOutgoingCall(connectedAt:)은 Call의 콜백에서 이미 처리됨
+        if !call.isOutGoing {
+            let answerAction = CXAnswerCallAction(call: call.uuid)        
+            let transaction = CXTransaction(action: answerAction)
+            callController.request(transaction) { error in
+                if let error = error {
+                    print("Error answering call: \(error.localizedDescription)")
+                }
             }
         }
     }

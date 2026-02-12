@@ -5,7 +5,7 @@ import AVFoundation
 import UserNotifications
 
 @available(iOS 10.0, *)
-public class SwiftFlutterCallkitIncomingPlugin: NSObject, FlutterPlugin, CXProviderDelegate {
+public class SwiftFlutterCallkitIncomingPlugin: NSObject, FlutterPlugin, CXProviderDelegate, CXCallObserverDelegate {
     
     static let ACTION_DID_UPDATE_DEVICE_PUSH_TOKEN_VOIP = "com.hiennv.flutter_callkit_incoming.DID_UPDATE_DEVICE_PUSH_TOKEN_VOIP"
     
@@ -42,7 +42,7 @@ public class SwiftFlutterCallkitIncomingPlugin: NSObject, FlutterPlugin, CXProvi
     
     private var silenceEvents: Bool = false
     private let devicePushTokenVoIP = "DevicePushTokenVoIP"
-
+    private let callObserver = CXCallObserver()
     
     private func sendEvent(_ event: String, _ body: [String : Any?]?) {
         if silenceEvents {
@@ -83,8 +83,25 @@ public class SwiftFlutterCallkitIncomingPlugin: NSObject, FlutterPlugin, CXProvi
     
     public init(messenger: FlutterBinaryMessenger) {
         callManager = CallManager()
+        super.init()
+        callObserver.setDelegate(self, queue: nil)
+        
     }
-    
+    // MARK: - CXCallObserverDelegate
+    public func callObserver(_ callObserver: CXCallObserver, callChanged call: CXCall) {
+        // 셀룰러 콜(우리 VoIP 콜이 아닌 것)이 끊겼는지 감지
+        let isOurCall = self.callManager.callWithUUID(uuid: call.uuid) != nil
+        
+        if !isOurCall && call.hasEnded {
+            // 셀룰러 콜이 종료됨 → hold 중인 VoIP 콜을 unhold
+            for managedCall in self.callManager.calls {
+                if managedCall.isOnHold {
+                    self.callManager.holdCall(call: managedCall, onHold: false)
+                }
+            }
+        }
+        
+    }
     private func shareHandlers(with registrar: FlutterPluginRegistrar) {
         registrar.addMethodCallDelegate(self, channel: Self.createMethodChannel(messenger: registrar.messenger()))
         let eventsHandler = EventCallbackHandler()
@@ -664,6 +681,7 @@ public class SwiftFlutterCallkitIncomingPlugin: NSObject, FlutterPlugin, CXProvi
     
     
     public func provider(_ provider: CXProvider, perform action: CXSetHeldCallAction) {
+        print("CXSetHeldCallAction action isOnHold : \(action.isOnHold)")
         guard let call = self.callManager.callWithUUID(uuid: action.callUUID) else {
             action.fail()
             return
@@ -673,6 +691,13 @@ public class SwiftFlutterCallkitIncomingPlugin: NSObject, FlutterPlugin, CXProvi
         self.callManager.setHold(call: call, onHold: action.isOnHold)
         sendHoldEvent(action.callUUID.uuidString, action.isOnHold)
         action.fulfill()
+
+        // hold 해제 시 오디오 세션 복구
+        if !action.isOnHold {
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
+                self.sendDefaultAudioInterruptionNotificationToStartAudioResource()
+            }
+        }
     }
     
     public func provider(_ provider: CXProvider, perform action: CXSetMutedCallAction) {
@@ -733,7 +758,6 @@ public class SwiftFlutterCallkitIncomingPlugin: NSObject, FlutterPlugin, CXProvi
         }
         self.outgoingCall?.startCall(withAudioSession: audioSession) {success in
             if success {
-                self.callManager.addCall(self.outgoingCall!)
                 self.outgoingCall?.startAudio()
             }
         }
