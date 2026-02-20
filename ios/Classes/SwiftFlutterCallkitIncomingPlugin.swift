@@ -414,6 +414,8 @@ public class SwiftFlutterCallkitIncomingPlugin: NSObject, FlutterPlugin, CXProvi
     }
     
     public func saveEndCall(_ uuid: String, _ reason: Int) {
+        if self.answerCall?.uuid.uuidString == uuid { self.answerCall = nil }
+        if self.outgoingCall?.uuid.uuidString == uuid { self.outgoingCall = nil }
         switch reason {
         case 1:
             self.sharedProvider?.reportCall(with: UUID(uuidString: uuid)!, endedAt: Date(), reason: CXCallEndedReason.failed)
@@ -584,6 +586,8 @@ public class SwiftFlutterCallkitIncomingPlugin: NSObject, FlutterPlugin, CXProvi
             call.endCall()
         }
         self.callManager.removeAllCalls()
+        self.answerCall = nil
+        self.outgoingCall = nil
     }
     
     public func provider(_ provider: CXProvider, perform action: CXStartCallAction) {
@@ -639,6 +643,17 @@ public class SwiftFlutterCallkitIncomingPlugin: NSObject, FlutterPlugin, CXProvi
     
     
     public func provider(_ provider: CXProvider, perform action: CXEndCallAction) {
+        if self.answerCall?.uuid.uuidString == action.callUUID.uuidString {
+            self.answerCall = nil
+        }
+        if self.outgoingCall?.uuid.uuidString == action.callUUID.uuidString {
+            self.outgoingCall = nil
+        }
+
+        guard let call = self.callManager.callWithUUID(uuid: action.callUUID) else {
+            action.fail()
+            return
+        }
         guard let call = self.callManager.callWithUUID(uuid: action.callUUID) else {
             // If call is not in manager, we can't get specific data, send generic timeout or handled externally
             // But since we strictly manage calls, this case should only happen if already removed.
@@ -756,11 +771,11 @@ public class SwiftFlutterCallkitIncomingPlugin: NSObject, FlutterPlugin, CXProvi
 
         if(self.answerCall?.hasConnected ?? false){
             sendDefaultAudioInterruptionNotificationToStartAudioResource()
-            return
+            
         }
         if(self.outgoingCall?.hasConnected ?? false){
             sendDefaultAudioInterruptionNotificationToStartAudioResource()
-            return
+            
         }
         self.outgoingCall?.startCall(withAudioSession: audioSession) {success in
             if success {

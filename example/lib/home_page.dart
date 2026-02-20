@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:math';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_callkit_incoming/entities/android_params.dart';
@@ -11,7 +12,6 @@ import 'package:flutter_callkit_incoming_example/app_router.dart';
 import 'package:flutter_callkit_incoming_example/navigation_service.dart';
 import 'package:http/http.dart';
 import 'package:uuid/uuid.dart';
-
 class HomePage extends StatefulWidget {
   const HomePage({super.key});
 
@@ -20,15 +20,18 @@ class HomePage extends StatefulWidget {
     return HomePageState();
   }
 }
-
+enum AudioOutput {
+   earpice, speaker, bluetooth
+}
 class HomePageState extends State<HomePage> {
   late final Uuid _uuid;
   String? _currentUuid;
   String textEvents = "";
-
+  
   @override
   void initState() {
     super.initState();
+    
     _uuid = const Uuid();
     _currentUuid = "";
     textEvents = "";
@@ -175,15 +178,16 @@ class HomePageState extends State<HomePage> {
         ios: const IOSParams(
           iconName: 'CallKitLogo',
           handleType: 'generic',
-          supportsVideo: true,
+          supportsVideo: false,
           maximumCallGroups: 2,
           maximumCallsPerCallGroup: 1,
-          audioSessionMode: 'default',
-          audioSessionActive: true,
+          audioSessionMode: 'voiceChat',
+          audioSessionActive: false,
+          configureAudioSession: false,
           audioSessionPreferredSampleRate: 44100.0,
           audioSessionPreferredIOBufferDuration: 0.005,
           supportsDTMF: true,
-          supportsHolding: true,
+          supportsHolding: false,
           supportsGrouping: false,
           supportsUngrouping: false,
           ringtonePath: 'system_ringtone_default',
@@ -205,8 +209,9 @@ class HomePageState extends State<HomePage> {
         nameCaller: 'Hien Nguyen',
         handle: '0123456789',
         type: 1,
+
         extra: <String, dynamic>{'userId': '1a2b3c4d'},
-        ios: const IOSParams(handleType: 'generic'),
+        ios: const IOSParams(handleType: 'generic', supportsVideo: false,maximumCallGroups: 1,maximumCallsPerCallGroup: 1,supportsHolding: true),
         callingNotification: const NotificationParams(
           showNotification: true,
           isShowCallback: true,
@@ -240,12 +245,15 @@ class HomePageState extends State<HomePage> {
       FlutterCallkitIncoming.onEvent.listen((event) async {
         print('HOME: $event');
         switch (event!.event) {
+          case Event.actionCallAudioStateChanged:
+          break;
           case Event.actionCallIncoming:
             // TODO: received an incoming call
             break;
           case Event.actionCallStart:
             // TODO: started an outgoing call
             // TODO: show screen calling in Flutter
+            
             NavigationService.instance
                 .pushNamedIfNotCurrent(AppRoute.callingPage, args: event.body);
             break;
