@@ -580,8 +580,9 @@ public class SwiftFlutterCallkitIncomingPlugin: NSObject, FlutterPlugin, CXProvi
         // ROUTE_EARPIECE = 1, ROUTE_BLUETOOTH = 2, ROUTE_WIRED_HEADSET = 4, ROUTE_SPEAKER = 8
         let session = AVAudioSession.sharedInstance()
         do {
-            // Must set category before overriding output port, and session must be active.
+            // Category must be set, then session activated, THEN override applied.
             try session.setCategory(.playAndRecord, options: [.allowBluetooth, .allowBluetoothA2DP, .duckOthers])
+            try session.setActive(true)
             switch route {
             case 8: // ROUTE_SPEAKER
                 try session.overrideOutputAudioPort(.speaker)
@@ -595,7 +596,6 @@ public class SwiftFlutterCallkitIncomingPlugin: NSObject, FlutterPlugin, CXProvi
             default: // ROUTE_EARPIECE (1) or ROUTE_WIRED_HEADSET (4)
                 try session.overrideOutputAudioPort(.none)
             }
-            try session.setActive(true)
         } catch {
             print("setAudioRoute error: \(error)")
         }

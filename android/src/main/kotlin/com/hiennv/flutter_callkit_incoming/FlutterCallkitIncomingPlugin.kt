@@ -4,6 +4,7 @@ import android.util.Log
 import android.annotation.SuppressLint
 import android.app.Activity
 import android.content.Context
+import android.media.AudioManager
 import android.telecom.CallAudioState
 import android.os.Build
 import android.os.Handler
@@ -380,6 +381,25 @@ class FlutterCallkitIncomingPlugin : FlutterPlugin, MethodCallHandler, ActivityA
 
                 "setAudioRoute" -> {
                     val route = call.arguments as? Int ?: CallAudioState.ROUTE_SPEAKER
+                    val audioManager = context?.getSystemService(Context.AUDIO_SERVICE) as? AudioManager
+                    // For self-managed connections Connection.setAudioRoute() is informational only;
+                    // AudioManager is what actually changes the route.
+                    when (route) {
+                        CallAudioState.ROUTE_SPEAKER -> {
+                            audioManager?.isSpeakerphoneOn = true
+                            audioManager?.isBluetoothScoOn = false
+                        }
+                        CallAudioState.ROUTE_BLUETOOTH -> {
+                            audioManager?.isSpeakerphoneOn = false
+                            audioManager?.startBluetoothSco()
+                            audioManager?.isBluetoothScoOn = true
+                        }
+                        else -> { // ROUTE_EARPIECE (1) or ROUTE_WIRED_HEADSET (4)
+                            audioManager?.stopBluetoothSco()
+                            audioManager?.isBluetoothScoOn = false
+                            audioManager?.isSpeakerphoneOn = false
+                        }
+                    }
                     if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
                         CallkitConnectionService.setAudioRoute(route)
                     }
@@ -387,9 +407,14 @@ class FlutterCallkitIncomingPlugin : FlutterPlugin, MethodCallHandler, ActivityA
                 }
 
                 "getAudioState" -> {
-                    val route = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
-                        CallkitConnectionService.activeConnection?.callAudioState?.route
-                    } else null
+                    val audioManager = context?.getSystemService(Context.AUDIO_SERVICE) as? AudioManager
+                    val route = when {
+                        audioManager?.isSpeakerphoneOn == true -> CallAudioState.ROUTE_SPEAKER
+                        audioManager?.isBluetoothScoOn == true -> CallAudioState.ROUTE_BLUETOOTH
+                        Build.VERSION.SDK_INT >= Build.VERSION_CODES.M ->
+                            CallkitConnectionService.activeConnection?.callAudioState?.route ?: CallAudioState.ROUTE_EARPIECE
+                        else -> CallAudioState.ROUTE_EARPIECE
+                    }
                     result.success(route)
                 }
             }
