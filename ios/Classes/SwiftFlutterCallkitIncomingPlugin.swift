@@ -248,7 +248,12 @@ public class SwiftFlutterCallkitIncomingPlugin: NSObject, FlutterPlugin, CXProvi
             result(true)
             break
         case "setAudioRoute":
+            let route = (call.arguments as? NSNumber)?.intValue ?? (call.arguments as? Int) ?? 8
+            self.setAudioRoute(route)
             result(true)
+            break
+        case "getAudioState":
+            result(self.getCurrentAudioRoute())
             break
         default:
             result(FlutterMethodNotImplemented)
@@ -549,6 +554,50 @@ public class SwiftFlutterCallkitIncomingPlugin: NSObject, FlutterPlugin, CXProvi
         NotificationCenter.default.post(name: AVAudioSession.interruptionNotification, object: self, userInfo: userInfo)
     }
     
+    func getCurrentAudioRoute() -> Int {
+        // Maps iOS AVAudioSession output ports to Android CallAudioState route constants:
+        // ROUTE_EARPIECE = 1, ROUTE_BLUETOOTH = 2, ROUTE_WIRED_HEADSET = 4, ROUTE_SPEAKER = 8
+        let outputs = AVAudioSession.sharedInstance().currentRoute.outputs
+        for output in outputs {
+            switch output.portType {
+            case .builtInSpeaker:
+                return 8
+            case .bluetoothHFP, .bluetoothLE, .bluetoothA2DP:
+                return 2
+            case .headphones, .headsetMic:
+                return 4
+            case .builtInReceiver:
+                return 1
+            default:
+                break
+            }
+        }
+        return 1 // default to earpiece
+    }
+
+    func setAudioRoute(_ route: Int) {
+        // route values match Android CallAudioState:
+        // ROUTE_EARPIECE = 1, ROUTE_BLUETOOTH = 2, ROUTE_WIRED_HEADSET = 4, ROUTE_SPEAKER = 8
+        let session = AVAudioSession.sharedInstance()
+        do {
+            switch route {
+            case 8: // ROUTE_SPEAKER
+                try session.overrideOutputAudioPort(.speaker)
+            case 2: // ROUTE_BLUETOOTH
+                try session.overrideOutputAudioPort(.none)
+                if let bluetoothInput = session.availableInputs?.first(where: {
+                    $0.portType == .bluetoothHFP || $0.portType == .bluetoothLE
+                }) {
+                    try session.setPreferredInput(bluetoothInput)
+                }
+            default: // ROUTE_EARPIECE (1) or ROUTE_WIRED_HEADSET (4)
+                try session.overrideOutputAudioPort(.none)
+            }
+        } catch {
+            print("setAudioRoute error: \(error)")
+        }
+    }
+
     func configureAudioSession(data: Data?){
         // ✅ Changed: accept Data as argument
         if data?.configureAudioSession != false {
