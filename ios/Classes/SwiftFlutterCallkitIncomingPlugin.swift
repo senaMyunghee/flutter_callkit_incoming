@@ -352,21 +352,6 @@ public class SwiftFlutterCallkitIncomingPlugin: NSObject, FlutterPlugin, CXProvi
     
     
     @objc public func startCall(_ data: Data, fromPushKit: Bool) {
-        let systemCalls = self.callManager.activeCalls()
-        print("[SwiftFlutterCallkitIncomingPlugin] 📞 startCall - systemCalls count: \(systemCalls.count)") // ← 이게 0인지 확인
-        print("[SwiftFlutterCallkitIncomingPlugin] 📞 startCall - callManager.calls count: \(self.callManager.calls.count)") // ← 확인
-        print("[SwiftFlutterCallkitIncomingPlugin] 📞 startCall - outgoingCall: \(String(describing: self.outgoingCall?.uuid))")
-        print("[SwiftFlutterCallkitIncomingPlugin] 📞 startCall - answerCall: \(String(describing: self.answerCall?.uuid))")
-        // 🗑️ Removed self.data = data
-        initCallkitProvider(data)
-        
-        guard let newUUID = UUID(uuidString: data.uuid) else { return }
-        
-        let newCall = Call(uuid: newUUID, data: data, isOutGoing: true)
-        newCall.handle = data.handle
-        self.callManager.addCall(newCall)
-        
-        // 기존 콜이 있으면 replace, 없으면 일반 start
         if let existingCall = self.outgoingCall ?? self.answerCall {
             if self.answerCall?.uuid == existingCall.uuid {
                 self.answerCall = nil
@@ -374,12 +359,9 @@ public class SwiftFlutterCallkitIncomingPlugin: NSObject, FlutterPlugin, CXProvi
             if self.outgoingCall?.uuid == existingCall.uuid {
                 self.outgoingCall = nil
             }
-            self.outgoingCall = newCall
-            self.callManager.replaceCall(oldCall: existingCall, newData: data)
-        } else {
-            self.outgoingCall = newCall
-            self.callManager.startCall(data)
+            self.callManager.endCall(call: existingCall)
         }
+        self.configureAudioSession(data: data)
     }
     
     @objc public func muteCall(_ callId: String, isMuted: Bool) {
@@ -609,9 +591,9 @@ public class SwiftFlutterCallkitIncomingPlugin: NSObject, FlutterPlugin, CXProvi
                     .allowBluetooth,
                 ])
                 
-                try session.setMode(self.getAudioSessionMode(data?.audioSessionMode))
+                try session.setMode(self.getAudioSessionMode(data?.audioSessionMode ?? .voiceChat))
                 try session.setActive(data?.audioSessionActive ?? true)
-                try session.setPreferredSampleRate(data?.audioSessionPreferredSampleRate ?? 44100.0)
+                try session.setPreferredSampleRate(data?.audioSessionPreferredSampleRate ?? 16000)
                 try session.setPreferredIOBufferDuration(data?.audioSessionPreferredIOBufferDuration ?? 0.005)
             }catch{
                 print(error)
